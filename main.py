@@ -1,11 +1,9 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Union
 import hashlib
 from datetime import datetime, timedelta
 import jwt
-import os
 
 from database import engine, SessionLocal, Base
 from models import Product, User, ContactMessage, wishlist_association
@@ -15,15 +13,6 @@ import schemas
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Handmade Bliss API", version="1.0.0")
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Dependency
 def get_db():
@@ -94,19 +83,36 @@ def get_all_products(
     products = query.offset(skip).limit(limit).all()
     return products
 
-@app.get("/api/products/{product_id}", response_model=schemas.Product)
-def get_product(product_id: int, db: Session = Depends(get_db)):
-    """Get a specific product by ID"""
-    product = db.query(Product).filter(Product.id == product_id).first()
-    
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
-        )
-    return product
+@app.get(
+    "/api/products/{product_id_or_category}",
+    response_model=Union[schemas.Product, List[schemas.Product]]
+)
+def get_product_or_category(
+    product_id_or_category: str,
+    db: Session = Depends(get_db)
+):
+    """Get a product by ID or all products in a category."""
+    if product_id_or_category.isdigit():
+        product = db.query(Product).filter(
+            Product.id == int(product_id_or_category)
+        ).first()
 
-@app.post("/api/products", response_model=schemas.Product)
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found"
+            )
+        return product
+
+    return db.query(Product).filter(
+        Product.category == product_id_or_category
+    ).all()
+
+@app.post(
+    "/api/products",
+    response_model=schemas.Product,
+    status_code=status.HTTP_201_CREATED
+)
 def create_product(
     product: schemas.ProductCreate,
     db: Session = Depends(get_db)
