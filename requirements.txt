@@ -6,4 +6,4 @@ pydantic-settings==2.1.0
 python-jose==3.3.0
 passlib==1.7.4
 python-multipart==0.0.6
-PyJWT==2.20.1
+PyJWT==2.10.1
